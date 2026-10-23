@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Would You Rather? 💗</title>
+  <style>
+    body { background: #fff5f7; font-family: sans-serif; text-align: center; color: #4a4a4a; padding: 20px; }
+    .cup-container { display: flex; justify-content: space-around; margin: 30px 0; }
+    .cup { width: 100px; height: 140px; border: 4px solid #dbb3c4; border-radius: 0 0 20px 20px; position: relative; overflow: hidden; cursor: pointer; background: #fff; }
+    .water { position: absolute; bottom: 0; width: 100%; transition: height 0.5s ease; }
+    #cup-pink .water { background: #ff8fa3; }
+    #cup-grey .water { background: #b0bec5; }
+    .btn { background: #ff8fa3; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; margin: 5px; }
+  </style>
+</head>
+<body>
+  <h2>Would You Rather? 💗</h2>
+  <div id="setup">
+    <input id="room-id" placeholder="Enter Room Code" style="padding: 8px; border-radius: 10px; border: 1px solid #ccc;"><br><br>
+    <button class="btn" onclick="joinRoom()">Join Room</button>
+  </div>
+  <div id="game" style="display:none;">
+    <h3 id="question-text">Waiting for question...</h3>
+    <div class="cup-container">
+      <div onclick="tapCup('pink')"><div class="cup" id="cup-pink"><div class="water" id="pink-water" style="height: 0%;"></div></div><p>m3aya 💗</p></div>
+      <div onclick="tapCup('grey')"><div class="cup" id="cup-grey"><div class="water" id="grey-water" style="height: 0%;"></div></div><p>m3a s7abek 👥</p></div>
+    </div>
+    <input id="custom-q" placeholder="Ask a custom question..." style="padding:8px;"><br><br>
+    <button class="btn" onclick="sendQuestion()">Ask Question</button>
+  </div>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    const firebaseConfig = { /* PASTE YOUR CONFIG HERE */ };
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    let rId, roomRef;
+    window.joinRoom = () => {
+      rId = document.getElementById("room-id").value;
+      if (!rId) return;
+      roomRef = ref(db, 'rooms/' + rId);
+      onValue(roomRef, (snap) => {
+        const val = snap.val() || { pink: 0, grey: 0, q: "Tap below to ask a question!" };
+        document.getElementById("pink-water").style.height = (val.pink || 0) + "%";
+        document.getElementById("grey-water").style.height = (val.grey || 0) + "%";
+        document.getElementById("question-text").innerText = val.q;
+      });
+      document.getElementById("setup").style.display = "none";
+      document.getElementById("game").style.display = "block";
+    };
+    window.sendQuestion = () => {
+      const q = document.getElementById("custom-q").value;
+      if(q) update(roomRef, { q: q, pink: 0, grey: 0 });
+    };
+    window.tapCup = (type) => {
+      onValue(roomRef, (snap) => {
+        const val = snap.val() || { pink: 0, grey: 0 };
+        if(type === 'pink') update(roomRef, { pink: Math.min(100, (val.pink || 0) + 10) });
+        else update(roomRef, { grey: Math.min(100, (val.grey || 0) + 10) });
+      }, { onlyOnce: true });
+    };
+  </script>
+</body>
+</html>
