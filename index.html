@@ -1,10 +1,216 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyDpO6MfmyR_G9qfsi9bKci8rUJj2CxkFUw",
-  authDomain: "cup-game-6049e.firebaseapp.com",
-  databaseURL: "https://cup-game-6049e-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "cup-game-6049e",
-  storageBucket: "cup-game-6049e.firebasestorage.app",
-  messagingSenderId: "786256662671",
-  appId: "1:786256662671:web:9d9929cb31a13cf8a7e0fa",
-  measurementId: "G-QSQZH1MB1Q"
-};
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Would You Rather? 💖</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            background: #fff5f7;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            text-align: center;
+            color: #4a4a4a;
+            padding: 20px;
+            margin: 0;
+        }
+        h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .btn {
+            background: #ff8fa3;
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 12px;
+            cursor: pointer;
+            width: 100%;
+            margin: 8px 0;
+            box-shadow: 0 4px 10px rgba(255, 143, 163, 0.3);
+            transition: transform 0.1s ease, background-color 0.2s ease;
+            position: relative;
+            z-index: 10;
+        }
+        .btn:active {
+            transform: scale(0.96);
+            background: #ff758f;
+        }
+        .game-btn-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .game-btn {
+            flex: 1;
+            background: #ffa6c1;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ffccd5;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            text-align: center;
+            outline: none;
+        }
+        input:focus {
+            border-color: #ff8fa3;
+        }
+        #room-display {
+            font-weight: bold;
+            font-size: 18px;
+            color: #c9184a;
+            margin: 15px 0;
+        }
+        /* Water container and rising animation styling */
+        .cup-container {
+            position: relative;
+            width: 120px;
+            height: 160px;
+            border: 4px solid #c9184a;
+            border-top: none;
+            border-radius: 0 0 20px 20px;
+            margin: 20px auto;
+            overflow: hidden;
+            background: white;
+        }
+        .water {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 0%; /* Starts empty */
+            background: #ff8fa3;
+            transition: height 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Would You Rather? 💖</h2>
+
+        <!-- Room Setup Section -->
+        <div id="setup">
+            <button class="btn" id="create-btn">✨ Create New Room</button>
+            <div style="margin: 15px 0; font-weight: bold; color: #888;">— OR —</div>
+            <input type="number" id="room-input" placeholder="Enter 4-Digit Code" pattern="\d*">
+            <button class="btn" id="join-btn">🔑 Join Room</button>
+        </div>
+
+        <div id="room-display"></div>
+
+        <!-- Visual Water Cup / Rising Section -->
+        <div class="cup-container">
+            <div class="water" id="cup-water"></div>
+        </div>
+
+        <!-- M3aya & M3a S7abek Buttons -->
+        <div class="game-btn-container" id="game-controls">
+            <button class="btn game-btn" id="m3aya-btn">M3aya</button>
+            <button class="btn game-btn" id="s7abek-btn">M3a S7abek</button>
+        </div>
+    </div>
+
+    <!-- Firebase & Button Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, get, child, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // REPLACE THIS WITH YOUR FIREBASE CONFIG
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+            projectId: "YOUR_PROJECT",
+            storageBucket: "YOUR_PROJECT.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        let activeRoomCode = null;
+
+        // --- ROOM CREATION & JOINING ---
+        window.createRoom = async function() {
+            const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+            const roomRef = ref(db, 'rooms/' + roomCode);
+
+            try {
+                await set(roomRef, {
+                    created: Date.now(),
+                    waterLevel: 0,
+                    status: 'waiting'
+                });
+                activeRoomCode = roomCode;
+                document.getElementById('room-display').innerText = "Room Code: " + roomCode;
+                alert("Room Created! Share code: " + roomCode);
+            } catch (error) {
+                alert("Error creating room: " + error.message);
+            }
+        };
+
+        window.joinRoom = async function() {
+            const roomCode = document.getElementById('room-input').value.trim();
+            if (!roomCode || roomCode.length !== 4) {
+                alert("Please enter a valid 4-digit code.");
+                return;
+            }
+
+            const dbRef = ref(db);
+            try {
+                const snapshot = await get(child(dbRef, 'rooms/' + roomCode));
+                if (snapshot.exists()) {
+                    activeRoomCode = roomCode;
+                    document.getElementById('room-display').innerText = "Joined Room: " + roomCode;
+                    alert("Successfully joined room " + roomCode + "!");
+                } else {
+                    alert("Room not found. Check the code and try again.");
+                }
+            } catch (error) {
+                alert("Error joining room: " + error.message);
+            }
+        };
+
+        // --- WATER RISING CONTROLS (M3aya / M3a S7abek) ---
+        let currentWaterHeight = 0;
+
+        window.riseWater = async function(increment) {
+            currentWaterHeight = Math.min(100, currentWaterHeight + increment);
+            document.getElementById('cup-water').style.height = currentWaterHeight + '%';
+
+            // If inside an active room, update Firebase so it syncs if needed
+            if (activeRoomCode) {
+                try {
+                    await update(ref(db, 'rooms/' + activeRoomCode), {
+                        waterLevel: currentWaterHeight
+                    });
+                } catch (e) {
+                    console.log("Sync error: ", e);
+                }
+            }
+        };
+
+        // Direct Touch & Click bindings to ensure they fire instantly on Android
+        document.getElementById('create-btn').addEventListener('click', window.createRoom);
+        document.getElementById('join-btn').addEventListener('click', window.joinRoom);
+        
+        // M3aya increases water by 25%
+        document.getElementById('m3aya-btn').addEventListener('click', () => window.riseWater(25));
+        
+        // M3a S7abek increases water by 50%
+        document.getElementById('s7abek-btn').addEventListener('click', () => window.riseWater(50));
+    </script>
+</body>
+</html>
