@@ -11,53 +11,124 @@
     #cup-pink .water { background: #ff8fa3; }
     #cup-grey .water { background: #b0bec5; }
     .btn { background: #ff8fa3; color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; margin: 5px; }
+    .btn-secondary { background: #dbb3c4; }
+    .room-display { font-size: 1.2rem; font-weight: bold; color: #ff8fa3; margin: 10px 0; }
   </style>
 </head>
 <body>
   <h2>Would You Rather? 💗</h2>
+
   <div id="setup">
+    <button class="btn" onclick="createRoom()">✨ Create New Room</button>
+    <p>— OR —</p>
     <input id="room-id" placeholder="Enter Room Code" style="padding: 8px; border-radius: 10px; border: 1px solid #ccc;"><br><br>
-    <button class="btn" onclick="joinRoom()">Join Room</button>
+    <button class="btn btn-secondary" onclick="joinExistingRoom()">Join Room</button>
   </div>
+
   <div id="game" style="display:none;">
+    <div class="room-display">Room Code: <span id="active-code">---</span></div>
     <h3 id="question-text">Waiting for question...</h3>
+
     <div class="cup-container">
-      <div onclick="tapCup('pink')"><div class="cup" id="cup-pink"><div class="water" id="pink-water" style="height: 0%;"></div></div><p>m3aya 💗</p></div>
-      <div onclick="tapCup('grey')"><div class="cup" id="cup-grey"><div class="water" id="grey-water" style="height: 0%;"></div></div><p>m3a s7abek 👥</p></div>
+      <div onclick="tapCup('pink')">
+        <div class="cup" id="cup-pink"><div class="water" id="pink-water" style="height: 0%;"></div></div>
+        <p>m3aya 💗</p>
+      </div>
+      <div onclick="tapCup('grey')">
+        <div class="cup" id="cup-grey"><div class="water" id="grey-water" style="height: 0%;"></div></div>
+        <p>m3a s7abek 👥</p>
+      </div>
     </div>
+
     <input id="custom-q" placeholder="Ask a custom question..." style="padding:8px;"><br><br>
     <button class="btn" onclick="sendQuestion()">Ask Question</button>
   </div>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getDatabase, ref, onValue, get, set, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
     const firebaseConfig = { /* PASTE YOUR CONFIG HERE */ };
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
     let rId, roomRef;
-    window.joinRoom = () => {
-      rId = document.getElementById("room-id").value;
-      if (!rId) return;
+
+    // Helper function to attach listener to a room
+    function connectToRoom(code) {
+      rId = code;
       roomRef = ref(db, 'rooms/' + rId);
+      document.getElementById("active-code").innerText = rId;
+
       onValue(roomRef, (snap) => {
         const val = snap.val() || { pink: 0, grey: 0, q: "Tap below to ask a question!" };
         document.getElementById("pink-water").style.height = (val.pink || 0) + "%";
         document.getElementById("grey-water").style.height = (val.grey || 0) + "%";
-        document.getElementById("question-text").innerText = val.q;
+        document.getElementById("question-text").innerText = val.q || "Tap below to ask a question!";
       });
+
       document.getElementById("setup").style.display = "none";
       document.getElementById("game").style.display = "block";
+    }
+
+    // 1. CREATE ROOM
+    window.createRoom = async () => {
+      // Generate a random 4-digit code (e.g. 4812)
+      const newCode = Math.floor(1000 + Math.random() * 9000).toString();
+      const newRoomRef = ref(db, 'rooms/' + newCode);
+
+      // Initialize room data in Firebase
+      await set(newRoomRef, {
+        pink: 0,
+        grey: 0,
+        q: "Tap below to ask a question!"
+      });
+
+      connectToRoom(newCode);
     };
-    window.sendQuestion = () => {
-      const q = document.getElementById("custom-q").value;
-      if(q) update(roomRef, { q: q, pink: 0, grey: 0 });
+
+    // 2. JOIN ROOM
+    window.joinExistingRoom = async () => {
+      const code = document.getElementById("room-id").value.trim();
+      if (!code) {
+        alert("Please enter a room code!");
+        return;
+      }
+      
+      const checkRef = ref(db, 'rooms/' + code);
+      const snap = await get(checkRef);
+
+      if (!snap.exists()) {
+        alert("Room code not found! Check the code or click 'Create New Room'.");
+        return;
+      }
+
+      connectToRoom(code);
     };
-    window.tapCup = (type) => {
-      onValue(roomRef, (snap) => {
-        const val = snap.val() || { pink: 0, grey: 0 };
-        if(type === 'pink') update(roomRef, { pink: Math.min(100, (val.pink || 0) + 10) });
-        else update(roomRef, { grey: Math.min(100, (val.grey || 0) + 10) });
-      }, { onlyOnce: true });
+
+    // 3. ASK QUESTION
+    window.sendQuestion = async () => {
+      const q = document.getElementById("custom-q").value.trim();
+      if (!q) return;
+
+      await update(roomRef, { q: q, pink: 0, grey: 0 });
+      document.getElementById("custom-q").value = "";
+    };
+
+    // 4. TAP CUP
+    window.tapCup = async (type) => {
+      const snap = await get(roomRef);
+      const val = snap.val() || { pink: 0, grey: 0 };
+
+      let currentPink = val.pink || 0;
+      let currentGrey = val.grey || 0;
+
+      if (type === 'pink') {
+        currentPink = Math.min(100, currentPink + 10);
+      } else {
+        currentGrey = Math.min(100, currentGrey + 10);
+      }
+
+      await update(roomRef, { pink: currentPink, grey: currentGrey });
     };
   </script>
 </body>
